@@ -50,6 +50,7 @@ const DEFAULT_SETTINGS = {
   categories: [...CATEGORY_NAMES],
   wordsPerGame: 40,
   turnSeconds: 45,
+  knownCategories: [...CATEGORY_NAMES],
 };
 
 /* ----------------------------------------------------------------------- */
@@ -136,7 +137,13 @@ export default function Home() {
   /* ---------- Carga inicial ---------- */
   useEffect(() => {
     const s = readStorage(SETTINGS_KEY);
-    if (s) setSettings({ ...DEFAULT_SETTINGS, ...s });
+    if (s) {
+      // Las categorías nuevas (que el móvil aún no conocía) aparecen marcadas por defecto
+      const known = s.knownCategories || CATEGORY_NAMES.filter((c) => c !== 'Disney');
+      const added = CATEGORY_NAMES.filter((c) => !known.includes(c));
+      const categories = [...(s.categories || []), ...added].filter((c) => CATEGORY_NAMES.includes(c));
+      setSettings({ ...DEFAULT_SETTINGS, ...s, categories, knownCategories: [...CATEGORY_NAMES] });
+    }
     const g = readStorage(GAME_KEY);
     if (g && g.phase && g.phase !== 'podium') setSavedGame(g);
     setMounted(true);

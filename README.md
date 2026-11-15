@@ -9,7 +9,7 @@ Juego de fiesta tipo *Time's Up* para jugar con **un solo móvil**: 3 rondas (de
 ### 1. Supabase
 1. Crea un proyecto en [supabase.com](https://supabase.com).
 2. Ve a **SQL Editor → New query**, pega todo `supabase_setup.sql` y pulsa **Run**.
-   Crea la tabla `words`, las políticas RLS, dos funciones RPC y 180 palabras iniciales.
+   Crea la tabla `words`, las políticas RLS, dos funciones RPC y 621 palabras en 11 categorías.
 3. En **Project Settings → API** copia la *Project URL* y la *anon public key*.
 
 ### 2. En local (opcional)
@@ -42,7 +42,7 @@ npm run dev                  # http://localhost:3000
 Si el móvil se bloquea o se recarga la página, la partida se guarda y puedes **Continuar**.
 
 ## Añadir palabras
-Se gestionan directamente en Supabase (**Table Editor → words**, o un `insert` en el SQL Editor). Las categorías válidas son: `Animales`, `Películas y Series`, `Videojuegos`, `Deportes`, `Acciones y Verbos`, `Objetos cotidianos`, `Personajes Famosos`, `Comida y Bebida`, `Lugares`, `Profesiones`.
+Se gestionan directamente en Supabase (**Table Editor → words**, o un `insert` en el SQL Editor). Las categorías válidas son: `Animales`, `Películas y Series`, `Videojuegos`, `Deportes`, `Acciones y Verbos`, `Objetos cotidianos`, `Personajes Famosos`, `Comida y Bebida`, `Lugares`, `Profesiones`, `Disney`.
 
 ## Anti-repetición
 Al empezar, la app pide las palabras menos jugadas (`times_played ASC`) de los temas elegidos, sortea las de la partida y les suma +1. Durante las rondas no hay ni una petición de red. En *Ajustes rápidos* tienes **Resetear contadores** para empezar de cero.
@@ -56,5 +56,5 @@ lib/supabaseClient.js
 lib/constants.js     Categorías, reglas de cada ronda, equipos de colores
 lib/sounds.js        Sonidos con Web Audio API + vibración
 public/manifest.json Iconos y manifiesto PWA
-supabase_setup.sql   Tabla, RLS, RPC y 180 palabras
+supabase_setup.sql   Tabla, RLS, RPC y 621 palabras
 ```
