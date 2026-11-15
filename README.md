@@ -32,20 +32,17 @@ npm run dev                  # http://localhost:3000
 - **Android (Chrome):** menú ⋮ → *Instalar aplicación*.
 
 ## Cómo se juega
-- **Ronda 1 – Descripción libre**, **Ronda 2 – Una sola palabra**, **Ronda 3 – Mímica**.
-- Cada acierto suma 1 punto al equipo en turno. *Pasar* manda la palabra al final del mazo.
-- *Deshacer último* revierte el último toque (también desde el resumen del turno).
-- Si el móvil se bloquea o se recarga la página, la partida se guarda y puedes **Continuar**.
+1. Apunta a **todos los participantes** (se guardan en el móvil para la próxima vez).
+2. Elige **2, 3 o 4 equipos** (Rojo, Azul, Amarillo, Verde) y pulsa **Generar Equipos**: el reparto es aleatorio y equilibrado. Puedes **volver a mezclar** o tocar a un jugador para cambiarlo de equipo.
+3. Antes de cada turno aparece **"Le toca a: [jugador]"**; dentro de cada equipo se rota en orden, también entre rondas.
+4. **Ronda 1 – Descripción libre:** pasar palabra **resta 5 segundos**. **Ronda 2 – Una sola palabra** y **Ronda 3 – Mímica:** pasar no penaliza.
+5. Al acabar cada turno se revisan los aciertos: si se desmarca uno, se resta el punto y la palabra vuelve al mazo (y si era la última, la ronda continúa).
+6. En el podio final: clasificación, **MVP** y **palabra maldita** (la más pasada).
 
-## Ampliar palabras sin tocar código
-Botón **Añadir palabras (JSON)** en la pantalla principal:
-```json
-[
-  {"word": "Koala", "category": "Animales"},
-  {"word": "Hacer la siesta", "category": "Acciones y Verbos"}
-]
-```
-Categorías válidas: `Animales`, `Películas y Series`, `Videojuegos`, `Deportes`, `Acciones y Verbos`, `Objetos cotidianos`, `Personajes Famosos`, `Comida y Bebida`, `Lugares`, `Profesiones` (no distingue mayúsculas ni tildes). Las palabras repetidas se ignoran y la app te dice cuántas se insertaron de verdad.
+Si el móvil se bloquea o se recarga la página, la partida se guarda y puedes **Continuar**.
+
+## Añadir palabras
+Se gestionan directamente en Supabase (**Table Editor → words**, o un `insert` en el SQL Editor). Las categorías válidas son: `Animales`, `Películas y Series`, `Videojuegos`, `Deportes`, `Acciones y Verbos`, `Objetos cotidianos`, `Personajes Famosos`, `Comida y Bebida`, `Lugares`, `Profesiones`.
 
 ## Anti-repetición
 Al empezar, la app pide las palabras menos jugadas (`times_played ASC`) de los temas elegidos, sortea las de la partida y les suma +1. Durante las rondas no hay ni una petición de red. En *Ajustes rápidos* tienes **Resetear contadores** para empezar de cero.
@@ -53,10 +50,10 @@ Al empezar, la app pide las palabras menos jugadas (`times_played ASC`) de los t
 ## Estructura
 ```
 app/layout.js        Metadatos, viewport y PWA
-app/page.js          Todas las pantallas y el motor del juego
+app/page.js          Pantallas y motor del juego (equipos, turnos, revisión, podio)
 app/globals.css      Estilos base (100dvh, sin zoom ni scroll accidental)
 lib/supabaseClient.js
-lib/constants.js     Categorías, reglas de cada ronda, colores
+lib/constants.js     Categorías, reglas de cada ronda, equipos de colores
 lib/sounds.js        Sonidos con Web Audio API + vibración
 public/manifest.json Iconos y manifiesto PWA
 supabase_setup.sql   Tabla, RLS, RPC y 180 palabras
