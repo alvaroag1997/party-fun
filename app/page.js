@@ -756,11 +756,11 @@ function SetupScreen(props) {
             transition={{ type: 'spring', stiffness: 300, damping: 15 }}
             className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-300 via-orange-500 to-pink-600 text-3xl shadow-lg shadow-orange-500/40 ring-2 ring-white/20"
           >
-            🎉
+            🎭
           </motion.div>
           <div className="min-w-0">
-            <h1 className="bg-gradient-to-r from-amber-200 via-orange-400 to-pink-500 bg-clip-text text-4xl font-black leading-none tracking-tight text-transparent drop-shadow-[0_0_18px_rgba(251,146,60,0.45)]">
-              Party Fun
+            <h1 className="bg-gradient-to-r from-amber-200 via-orange-400 to-pink-500 bg-clip-text text-[2.15rem] font-black leading-none tracking-tight text-transparent drop-shadow-[0_0_18px_rgba(251,146,60,0.45)] sm:text-4xl">
+              Adivinódromo
             </h1>
             <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-300">
               3 rondas · 1 móvil · muchas risas

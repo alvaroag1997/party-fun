@@ -1,4 +1,4 @@
-# 🎉 Party Fun
+# 🎭 Adivinódromo
 
 Juego de fiesta tipo *Time's Up* para jugar con **un solo móvil**: 3 rondas (descripción libre, una sola palabra y mímica) con las mismas palabras.
 

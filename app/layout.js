@@ -1,13 +1,13 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Party Fun',
+  title: 'Adivinódromo',
   description: 'Juego de fiesta de 3 rondas con un solo móvil: describe, una palabra y mímica.',
   manifest: '/manifest.json',
-  applicationName: 'Party Fun',
+  applicationName: 'Adivinódromo',
   appleWebApp: {
     capable: true,
-    title: 'Party Fun',
+    title: 'Adivinódromo',
     statusBarStyle: 'black-translucent',
   },
   icons: {

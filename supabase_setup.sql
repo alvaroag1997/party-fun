@@ -1,5 +1,5 @@
 -- =====================================================================
---  PARTY FUN · Script de configuración de Supabase
+--  ADIVINÓDROMO · Script de configuración de Supabase
 --  Ejecútalo entero en: Supabase Dashboard → SQL Editor → New query → Run
 --  Es re-ejecutable: no duplica palabras ni falla si ya existe algo.
 -- =====================================================================
