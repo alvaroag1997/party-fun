@@ -36,8 +36,10 @@ npm run dev                  # http://localhost:3000
 2. Elige **2, 3 o 4 equipos** (Rojo, Azul, Amarillo, Verde) y pulsa **Generar Equipos**: el reparto es aleatorio y equilibrado. Puedes **volver a mezclar** o tocar a un jugador para cambiarlo de equipo.
 3. Antes de cada turno aparece **"Le toca a: [jugador]"**; dentro de cada equipo se rota en orden, también entre rondas.
 4. **Ronda 1 – Descripción libre:** pasar palabra **resta 5 segundos**. **Ronda 2 – Una sola palabra** y **Ronda 3 – Mímica:** pasar no penaliza.
-5. Al acabar cada turno se revisan los aciertos: si se desmarca uno, se resta el punto y la palabra vuelve al mazo (y si era la última, la ronda continúa).
-6. En el podio final: clasificación, **MVP** y **palabra maldita** (la más pasada).
+5. **Tiempo extra:** si alguien acierta la última palabra de la ronda y aún le queda reloj, ese mismo jugador empieza la siguiente ronda con los segundos que le sobraron (salvo que en la revisión se desmarque alguna palabra).
+6. Durante el turno hay un botón de **pausa** que para el reloj y tapa la palabra.
+7. Al acabar cada turno se revisan los aciertos: si se desmarca uno, se resta el punto y la palabra vuelve al mazo (y si era la última, la ronda continúa).
+8. En el podio final: clasificación, **MVP**, **palabra maldita** (la más pasada) y **mejor turno**.
 
 Si el móvil se bloquea o se recarga la página, la partida se guarda y puedes **Continuar**.
 

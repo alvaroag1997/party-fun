@@ -25,6 +25,7 @@ import {
   UserPlus,
   Users,
   X,
+  Zap,
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import {
@@ -407,19 +408,48 @@ export default function Home() {
   };
 
   /* ---------- Turno ---------- */
-  const startTurn = () => {
+  // Prepara el reloj para un turno de `seconds` segundos
+  const armTimer = (seconds) => {
     unlockAudio();
     requestWakeLock();
-    endAtRef.current = Date.now() + game.turnSeconds * 1000;
-    lastSecondRef.current = game.turnSeconds;
+    endAtRef.current = Date.now() + seconds * 1000;
+    lastSecondRef.current = seconds;
     turnEndedRef.current = false;
-    setRemaining(game.turnSeconds);
+    setRemaining(seconds);
     setPaused(false);
     setPenaltyKey(0);
+  };
+
+  const startTurn = () => {
+    const seconds = game.turnSeconds;
+    armTimer(seconds);
     setGame((g) => ({
       ...g,
       phase: 'turn',
-      turn: { player: playerOf(g), hits: [], passes: 0, reason: null },
+      turn: { player: playerOf(g), hits: [], passes: 0, reason: null, duration: seconds, carryover: 0 },
+    }));
+    sfx.start();
+  };
+
+  // Tiempo extra: el mismo jugador sigue en la nueva ronda con los segundos que le sobraron
+  const startCarryoverTurn = () => {
+    const seconds = game.carryover?.seconds || game.turnSeconds;
+    armTimer(seconds);
+    setGame((g) => ({
+      ...g,
+      round: g.round + 1,
+      queue: shuffle(g.deck),
+      carryover: null,
+      phase: 'turn',
+      turn: {
+        player: playerOf(g),
+        hits: [],
+        passes: 0,
+        reason: null,
+        duration: seconds,
+        carryover: 0,
+        isExtraTime: true,
+      },
     }));
     sfx.start();
   };
@@ -428,7 +458,7 @@ export default function Home() {
     if (turnEndedRef.current) return;
     turnEndedRef.current = true;
     if (reason === 'time') sfx.horn();
-    else sfx.fanfare();
+    else sfx.deckComplete();
     setGame((g) =>
       g && g.phase === 'turn' ? { ...g, phase: 'turnEnd', turn: { ...g.turn, reason } } : g
     );
@@ -452,6 +482,12 @@ export default function Home() {
     }, 100);
     return () => clearInterval(id);
   }, [game, paused, endTurn]);
+
+  const pause = () => {
+    if (!game || game.phase !== 'turn' || paused || turnEndedRef.current) return;
+    pausedLeftRef.current = Math.max(0, endAtRef.current - Date.now());
+    setPaused(true);
+  };
 
   const resume = () => {
     endAtRef.current = Date.now() + pausedLeftRef.current;
@@ -484,10 +520,16 @@ export default function Home() {
     };
     sfx.correct();
     if (rest.length === 0) {
-      // Última palabra del mazo: fin de turno y a revisión
+      // Última palabra del mazo: se para el reloj y se guarda el tiempo sobrante
+      const leftMs = endAtRef.current - Date.now();
+      const carryover = leftMs > 0 ? Math.ceil(leftMs / 1000) : 0;
       turnEndedRef.current = true;
-      sfx.fanfare();
-      setGame({ ...next, phase: 'turnEnd', turn: { ...next.turn, reason: 'roundComplete' } });
+      sfx.deckComplete();
+      setGame({
+        ...next,
+        phase: 'turnEnd',
+        turn: { ...next.turn, reason: 'roundComplete', carryover },
+      });
     } else {
       setGame(next);
     }
@@ -552,6 +594,31 @@ export default function Home() {
         ...g.playerStats,
         [player]: (g.playerStats[player] || 0) - removed.length,
       };
+      // Mejor turno de la partida (aciertos confirmados en un único turno)
+      const kept = g.turn.hits.length - removed.length;
+      const bestTurn =
+        kept > (g.bestTurn?.hits || 0)
+          ? { player, teamIdx: g.teamIdx, round: g.round, hits: kept }
+          : g.bestTurn || null;
+
+      const roundFinished = queue.length === 0;
+      // Caso A: si se desmarcó algo, el tiempo sobrante se pierde
+      const carrySeconds = removed.length === 0 ? g.turn.carryover || 0 : 0;
+
+      // Caso B con tiempo extra (Ronda 1 o 2): mismo equipo y mismo jugador continúan
+      if (roundFinished && g.round < 2 && carrySeconds > 0) {
+        return {
+          ...g,
+          queue,
+          scores,
+          playerStats,
+          bestTurn,
+          turn: null,
+          carryover: { seconds: carrySeconds, teamIdx: g.teamIdx, player },
+          phase: 'roundEnd',
+        };
+      }
+
       // El equipo que acaba de jugar pasa al siguiente integrante para su próximo turno
       const teams = g.teams.map((t, i) =>
         i === g.teamIdx ? { ...t, nextPlayer: (t.nextPlayer + 1) % t.players.length } : t
@@ -561,11 +628,13 @@ export default function Home() {
         queue,
         scores,
         playerStats,
+        bestTurn,
         teams,
         teamIdx: (g.teamIdx + 1) % g.teams.length,
         turn: null,
+        carryover: null,
       };
-      if (queue.length === 0) return { ...base, phase: g.round >= 2 ? 'podium' : 'roundEnd' };
+      if (roundFinished) return { ...base, phase: g.round >= 2 ? 'podium' : 'roundEnd' };
       return { ...base, phase: 'ready' };
     });
   };
@@ -586,7 +655,7 @@ export default function Home() {
 
   const startNextRound = () => {
     unlockAudio();
-    setGame((g) => ({ ...g, round: g.round + 1, queue: shuffle(g.deck), phase: 'ready' }));
+    setGame((g) => ({ ...g, round: g.round + 1, queue: shuffle(g.deck), carryover: null, phase: 'ready' }));
   };
 
   /* ---------- Render ---------- */
@@ -651,13 +720,21 @@ export default function Home() {
           penaltyKey={penaltyKey}
           onHit={handleHit}
           onPass={handlePass}
+          onPause={pause}
           onResume={resume}
         />
       );
     case 'turnEnd':
       return <ReviewScreen game={game} onToggle={toggleReview} onContinue={confirmReview} />;
     case 'roundEnd':
-      return <RoundEndScreen game={game} onNext={startNextRound} onQuit={quitGame} />;
+      return (
+        <RoundEndScreen
+          game={game}
+          onNext={startNextRound}
+          onContinueExtra={startCarryoverTurn}
+          onQuit={quitGame}
+        />
+      );
     case 'podium':
       return <PodiumScreen game={game} onNewGame={newGame} />;
     default:
@@ -1211,13 +1288,14 @@ const cardVariants = {
   }),
 };
 
-function TurnScreen({ game, remaining, paused, penaltyKey, onHit, onPass, onResume }) {
+function TurnScreen({ game, remaining, paused, penaltyKey, onHit, onPass, onPause, onResume }) {
   const current = game.queue[0];
   const t = team(game.teamIdx);
   const hits = game.turn?.hits.length || 0;
   const passes = game.turn?.passes || 0;
   const danger = remaining <= 5;
-  const pct = Math.max(0, Math.min(100, (remaining / game.turnSeconds) * 100));
+  const duration = game.turn?.duration || game.turnSeconds;
+  const pct = Math.max(0, Math.min(100, (remaining / duration) * 100));
   const penaltyRound = game.round === 0;
 
   // Dirección de salida de la carta: derecha si fue acierto, izquierda si se pasó
@@ -1272,7 +1350,18 @@ function TurnScreen({ game, remaining, paused, penaltyKey, onHit, onPass, onResu
           <p className="text-xs tabular-nums text-zinc-400">
             {game.queue.length} / {game.deck.length}
           </p>
+          {game.turn?.isExtraTime && (
+            <p className="text-[10px] font-black uppercase tracking-wider text-emerald-400">⏱ Tiempo extra</p>
+          )}
         </div>
+        <button
+          onClick={onPause}
+          disabled={paused}
+          aria-label="Pausar"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/15 bg-black/40 text-zinc-300 transition active:scale-90 disabled:opacity-30"
+        >
+          <Pause size={16} fill="currentColor" />
+        </button>
       </div>
 
       {/* Reloj */}
@@ -1320,17 +1409,26 @@ function TurnScreen({ game, remaining, paused, penaltyKey, onHit, onPass, onResu
       {/* Carta */}
       <div className="relative my-4 min-h-0 flex-1">
         {paused ? (
-          <div className={`flex h-full flex-col items-center justify-center gap-4 rounded-[2rem] ${GLASS}`}>
-            <Pause size={56} className="text-zinc-500" />
-            <p className="text-2xl font-bold">En pausa</p>
-            <p className="px-6 text-center text-sm text-zinc-400">La app se pausó al salir de la pantalla</p>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex h-full flex-col items-center justify-center gap-4 rounded-[2rem] border-2 border-white/10 bg-zinc-950 shadow-xl"
+          >
+            <span className="flex h-20 w-20 items-center justify-center rounded-full bg-white/5">
+              <Pause size={40} className="text-zinc-300" fill="currentColor" />
+            </span>
+            <p className="text-3xl font-black">Juego en pausa</p>
+            <p className="px-8 text-center text-sm text-zinc-400">
+              El reloj está parado en <span className="font-bold text-zinc-200">{remaining}s</span> y la palabra
+              queda oculta.
+            </p>
             <button
               onClick={onResume}
               className={`${ARCADE} rounded-2xl border-amber-600 bg-amber-400 px-8 py-3 text-lg font-black text-zinc-950`}
             >
               <Play size={18} fill="currentColor" /> Reanudar
             </button>
-          </div>
+          </motion.div>
         ) : (
           <>
             {/* Cartas apiladas detrás */}
@@ -1522,8 +1620,21 @@ function ReviewScreen({ game, onToggle, onContinue }) {
 
       {turn.reason === 'roundComplete' && removed > 0 && (
         <p className="mt-3 text-center text-sm text-amber-300">
-          Has desmarcado {removed}: la ronda continúa con esas palabras.
+          Has desmarcado {removed}: la ronda continúa con esas palabras
+          {turn.carryover > 0 ? ' y se pierde el tiempo extra' : ''}.
         </p>
+      )}
+
+      {roundDone && turn.carryover > 0 && game.round < 2 && (
+        <motion.div
+          initial={{ y: 10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className={`mt-3 rounded-2xl border-2 ${t.borderSoft} ${t.soft} px-3 py-2 text-center text-sm`}
+        >
+          ⏱ Sobran <span className="font-black">{turn.carryover}s</span>:{' '}
+          <span className={`font-black ${t.text}`}>{turn.player}</span> seguirá jugando en la Ronda{' '}
+          {game.round + 2}
+        </motion.div>
       )}
 
       <button
@@ -1551,43 +1662,86 @@ function ReviewScreen({ game, onToggle, onContinue }) {
 /* Fin de ronda                                                            */
 /* ----------------------------------------------------------------------- */
 
-function RoundEndScreen({ game, onNext, onQuit }) {
+function RoundEndScreen({ game, onNext, onContinueExtra, onQuit }) {
   const next = ROUNDS[game.round + 1];
   const t = team(game.teamIdx);
+  const extra = game.carryover?.seconds > 0 ? game.carryover : null;
+
   return (
     <main className={`no-select ${SCREEN} flex flex-col px-5 pt-safe pb-safe`}>
-      <Ambient />
+      <Ambient glow={extra ? t.glow : undefined} />
       <TopBar game={game} onQuit={onQuit} />
       <div className="scroll-area flex-1">
         <h2 className="mt-4 text-center text-3xl font-black">Fin de la Ronda {game.round + 1}</h2>
         <p className="mb-4 text-center text-zinc-400">Marcador parcial</p>
         <ScoreTable game={game} upToRound={game.round} />
 
+        {/* Regla de la nueva ronda */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.15 }}
-          className={`mt-6 rounded-3xl ${GLASS} border-amber-500/40 p-5 text-center`}
+          className={`mt-5 rounded-3xl ${GLASS} border-amber-500/40 p-5 text-center`}
         >
           <p className="text-4xl">{next.emoji}</p>
           <p className="mt-1 text-xs font-bold uppercase tracking-widest text-amber-400">
-            Siguiente: Ronda {game.round + 2}/3
+            Ronda {game.round + 2}/3 · {next.title}
           </p>
-          <h3 className="text-2xl font-black">{next.title}</h3>
+          <h3 className="bg-gradient-to-r from-amber-200 via-orange-400 to-pink-500 bg-clip-text text-3xl font-black text-transparent">
+            {next.banner}
+          </h3>
           <p className="mt-1 text-sm text-zinc-300">{next.rule}</p>
-          <p className="mt-3 text-xs text-zinc-400">
-            Mismas {game.deck.length} palabras, barajadas otra vez. Empieza el{' '}
-            <span className={`font-bold ${t.text}`}>{t.name}</span> con{' '}
-            <span className="font-bold text-zinc-200">{playerOf(game)}</span>.
-          </p>
+          {!extra && (
+            <p className="mt-3 text-xs text-zinc-400">
+              Mismas {game.deck.length} palabras, barajadas otra vez. Empieza el{' '}
+              <span className={`font-bold ${t.text}`}>{t.name}</span> con{' '}
+              <span className="font-bold text-zinc-200">{playerOf(game)}</span>.
+            </p>
+          )}
         </motion.div>
+
+        {/* Tiempo extra para el mismo jugador */}
+        {extra && (
+          <motion.div
+            initial={{ scale: 0.85, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 16, delay: 0.3 }}
+            className={`mt-4 rounded-3xl border-2 ${t.border} ${t.soft} ${t.cardGlow} p-5 text-center backdrop-blur-md`}
+          >
+            <motion.p
+              animate={{ rotate: [-8, 8, -8] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+              className="inline-block text-4xl"
+            >
+              ⏱️
+            </motion.p>
+            <p className={`mt-1 text-2xl font-black ${t.text}`}>¡Tiempo extra!</p>
+            <p className="mt-1 text-base text-zinc-200">
+              <span className="font-black text-white">{extra.player}</span> continúa su turno con los{' '}
+              <span className="font-black text-white">{extra.seconds}s</span> que le sobraron
+            </p>
+            <p className="mt-2 text-xs text-zinc-400">
+              Se barajan otra vez las {game.deck.length} palabras y el reloj empieza en {extra.seconds}s.
+            </p>
+          </motion.div>
+        )}
       </div>
-      <button
-        onClick={onNext}
-        className={`${ARCADE} mt-4 w-full rounded-2xl border-amber-600 bg-gradient-to-b from-amber-300 to-amber-400 py-5 text-xl font-black text-zinc-950`}
-      >
-        Empezar Ronda {game.round + 2} <ChevronRight />
-      </button>
+
+      {extra ? (
+        <button
+          onClick={onContinueExtra}
+          className={`${ARCADE} mt-4 w-full rounded-2xl ${t.bg} ${t.onBg} ${t.btnBorder} py-5 text-xl font-black`}
+        >
+          <Play fill="currentColor" /> Continuar turno ({extra.seconds}s)
+        </button>
+      ) : (
+        <button
+          onClick={onNext}
+          className={`${ARCADE} mt-4 w-full rounded-2xl border-amber-600 bg-gradient-to-b from-amber-300 to-amber-400 py-5 text-xl font-black text-zinc-950`}
+        >
+          Empezar Ronda {game.round + 2} <ChevronRight />
+        </button>
+      )}
     </main>
   );
 }
@@ -1760,6 +1914,35 @@ function PodiumScreen({ game, onNewGame }) {
               </>
             ) : (
               <p className="mt-1 text-sm text-zinc-400">¡Nadie pasó ninguna!</p>
+            )}
+          </motion.div>
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.9 }}
+            className="col-span-2 rounded-3xl border-2 border-sky-400/50 bg-gradient-to-br from-sky-400/20 to-indigo-700/10 p-3 shadow-[0_0_30px_-10px_rgba(56,189,248,0.7)] backdrop-blur-md"
+          >
+            <p className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-sky-300">
+              <Zap size={14} fill="currentColor" /> Mejor turno
+            </p>
+            {game.bestTurn?.hits > 0 ? (
+              <div className="mt-1 flex items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-words text-xl font-black leading-tight">{game.bestTurn.player}</p>
+                  <p className="text-xs text-zinc-300">
+                    <span className={`font-bold ${team(game.bestTurn.teamIdx).text}`}>
+                      {team(game.bestTurn.teamIdx).name}
+                    </span>{' '}
+                    · Ronda {game.bestTurn.round + 1} ({ROUNDS[game.bestTurn.round].title})
+                  </p>
+                </div>
+                <p className="shrink-0 text-right">
+                  <span className="text-4xl font-black tabular-nums text-sky-200">{game.bestTurn.hits}</span>
+                  <span className="block text-[11px] font-semibold text-zinc-400">aciertos en un turno</span>
+                </p>
+              </div>
+            ) : (
+              <p className="mt-1 text-sm text-zinc-400">Sin aciertos que destacar</p>
             )}
           </motion.div>
         </div>
