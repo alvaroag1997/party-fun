@@ -44,6 +44,11 @@ Si el móvil se bloquea o se recarga la página, la partida se guarda y puedes *
 ## Añadir palabras
 Se gestionan directamente en Supabase (**Table Editor → words**, o un `insert` en el SQL Editor). Las categorías válidas son: `Animales`, `Películas y Series`, `Videojuegos`, `Deportes`, `Acciones y Verbos`, `Objetos cotidianos`, `Personajes Famosos`, `Comida y Bebida`, `Lugares`, `Profesiones`, `Disney`.
 
+## Estadísticas (solo para ti)
+Cada partida apunta de forma anónima cuándo empieza y cuándo termina (nº de jugadores, equipos, palabras, temas y duración). No se guardan nombres ni nada que identifique a nadie, y desde la app no se pueden leer.
+
+Para verlas: **Supabase → Table Editor → `estadisticas_diarias`** (resumen por día) o `game_events` (detalle).
+
 ## Anti-repetición
 Al empezar, la app pide las palabras menos jugadas (`times_played ASC`) de los temas elegidos, sortea las de la partida y les suma +1. Durante las rondas no hay ni una petición de red. En *Ajustes rápidos* tienes **Resetear contadores** para empezar de cero.
 
@@ -55,6 +60,7 @@ app/globals.css      Estilos base (100dvh, sin zoom ni scroll accidental)
 lib/supabaseClient.js
 lib/constants.js     Categorías, reglas de cada ronda, equipos de colores
 lib/sounds.js        Sonidos con Web Audio API + vibración
+lib/stats.js         Contador anónimo de partidas
 public/manifest.json Iconos y manifiesto PWA
 supabase_setup.sql   Tabla, RLS, RPC y 621 palabras
 ```

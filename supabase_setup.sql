@@ -722,3 +722,44 @@ on conflict (word) do nothing;
 
 -- Comprobación rápida (opcional):
 -- select category, count(*) from public.words group by category order by category;
+
+-- 5) CONTADOR ANÓNIMO DE PARTIDAS ---------------------------------------
+-- La app solo puede insertar; las estadísticas se consultan desde el panel.
+create table if not exists public.game_events (
+  id           bigint generated always as identity primary key,
+  created_at   timestamptz not null default now(),
+  event        text not null check (event in ('game_start', 'game_end')),
+  players      int  check (players between 0 and 200),
+  teams        int  check (teams between 0 and 10),
+  words        int  check (words between 0 and 200),
+  turn_seconds int  check (turn_seconds between 0 and 600),
+  duration_min int  check (duration_min between 0 and 1440),
+  categories   text[] check (cardinality(categories) <= 30)
+);
+
+create index if not exists game_events_created_idx on public.game_events (created_at);
+alter table public.game_events enable row level security;
+
+drop policy if exists "game_events_insert_public" on public.game_events;
+create policy "game_events_insert_public"
+  on public.game_events for insert
+  to anon, authenticated
+  with check (true);
+
+revoke all on public.game_events from anon, authenticated;
+grant insert on public.game_events to anon, authenticated;
+
+create or replace view public.estadisticas_diarias
+with (security_invoker = true) as
+select
+  (created_at at time zone 'Europe/Madrid')::date                as dia,
+  count(*) filter (where event = 'game_start')                   as partidas_empezadas,
+  count(*) filter (where event = 'game_end')                     as partidas_terminadas,
+  round(avg(players) filter (where event = 'game_start'), 1)     as jugadores_media,
+  sum(players) filter (where event = 'game_start')               as jugadores_total,
+  round(avg(duration_min) filter (where event = 'game_end'), 0)  as duracion_media_min
+from public.game_events
+group by 1
+order by 1 desc;
+
+revoke all on public.estadisticas_diarias from anon, authenticated;

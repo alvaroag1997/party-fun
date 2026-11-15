@@ -40,9 +40,12 @@ import {
   WORD_OPTIONS,
 } from '@/lib/constants';
 import { sfx, unlockAudio } from '@/lib/sounds';
+import { trackEvent } from '@/lib/stats';
 
-const SETTINGS_KEY = 'partyfun:settings:v2';
-const GAME_KEY = 'partyfun:game:v2';
+const SETTINGS_KEY = 'adivinodromo:settings:v2';
+const GAME_KEY = 'adivinodromo:game:v2';
+// Claves de la versión anterior (se migran una vez y se borran)
+const LEGACY_KEYS = { [SETTINGS_KEY]: 'partyfun:settings:v2', [GAME_KEY]: 'partyfun:game:v2' };
 const TAP_GUARD_MS = 280; // evita dobles toques accidentales
 
 const DEFAULT_SETTINGS = {
@@ -69,7 +72,13 @@ function shuffle(arr) {
 
 function readStorage(key) {
   try {
-    const raw = window.localStorage.getItem(key);
+    let raw = window.localStorage.getItem(key);
+    const legacy = LEGACY_KEYS[key];
+    if (!raw && legacy) {
+      raw = window.localStorage.getItem(legacy);
+      if (raw) window.localStorage.setItem(key, raw);
+    }
+    if (legacy) window.localStorage.removeItem(legacy);
     return raw ? JSON.parse(raw) : null;
   } catch (_) {
     return null;
@@ -344,7 +353,15 @@ export default function Home() {
         passCounts: {},
         turn: null,
         turnSeconds: settings.turnSeconds,
+        startedAt: Date.now(),
         phase: 'ready',
+      });
+      trackEvent('game_start', {
+        players: teams.reduce((n, t) => n + t.players.length, 0),
+        teams: teams.length,
+        words: chosen.length,
+        turn_seconds: settings.turnSeconds,
+        categories: settings.categories,
       });
       setDraftTeams(null);
       setSavedGame(null);
@@ -557,6 +574,13 @@ export default function Home() {
     if (game?.phase === 'podium') {
       sfx.fanfare();
       writeStorage(GAME_KEY, null);
+      trackEvent('game_end', {
+        players: game.teams.reduce((n, t) => n + t.players.length, 0),
+        teams: game.teams.length,
+        words: game.deck.length,
+        turn_seconds: game.turnSeconds,
+        duration_min: game.startedAt ? Math.round((Date.now() - game.startedAt) / 60000) : null,
+      });
     }
   }, [game?.phase]);
 
